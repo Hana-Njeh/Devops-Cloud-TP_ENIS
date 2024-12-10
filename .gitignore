@@ -1,0 +1,8 @@
+my-terraform-project/.terraform
+my-terraform-project/terraform.tfstate
+my-terraform-project/terraform.tfstate.backup
+my-terraform-project/.terraform.lock.hcl
+my-terraform-project/remote-backend/.terraform
+my-terraform-project/remote-backend/terraform.tfstate
+my-terraform-project/remote-backend/.terraform.lock.hcl
+my-terraform-project/remote-backend/terraform.tfstate.backup
