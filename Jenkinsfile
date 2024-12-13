@@ -16,37 +16,43 @@ pipeline {
         stage('Provision Server and Database') {
             steps {
                 script {
+                    // Provision backend resources
                     dir('my-terraform-project/remote_backend') {
+                        echo "Initializing Terraform for remote backend..."
                         sh "terraform init"
-                        // Apply Terraform configuration for remote backend
+                        echo "Applying Terraform configuration for remote backend..."
                         sh "terraform apply --auto-approve"
                     }
+                    // Provision main infrastructure
                     dir('my-terraform-project') {
-                        // Initialize Terraform
+                        echo "Initializing Terraform for main project..."
                         sh "terraform init"
+                        echo "Planning Terraform changes..."
                         sh "terraform plan -lock=false"
-                        // Apply Terraform configuration
+                        echo "Applying Terraform configuration..."
                         sh "terraform apply -lock=false --auto-approve"
-                        // Get EC2 Public IP
+                        
+                        // Capture and print EC2 Public IP
                         EC2_PUBLIC_IP = sh(
                             script: "terraform output instance_details | grep 'instance_public_ip' | awk '{print \$3}' | tr -d '\"'",
                             returnStdout: true
                         ).trim()
-                        // Get RDS Endpoint
+                        echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
+                        
+                        // Capture and print RDS Endpoint
                         RDS_ENDPOINT = sh(
                             script: """
                                 terraform output rds_endpoint | grep 'endpoint' | awk -F'=' '{print \$2}' | tr -d '[:space:]\"' | sed 's/:3306//'
                             """,
                             returnStdout: true
                         ).trim()
-                        // Get Deployer Key URI
+                        echo "RDS Endpoint: ${RDS_ENDPOINT}"
+                        
+                        // Capture and print Deployer Key URI
                         DEPLOYER_KEY_URI = sh(
                             script: "terraform output deployer_key_s3_uri | tr -d '\"'",
                             returnStdout: true
                         ).trim()
-                        // Debugging: Print captured values
-                        echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
-                        echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
                     }
                 }
@@ -56,13 +62,12 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp/frontend/src') {
+                        echo "Updating frontend configuration..."
                         writeFile file: 'config.js', text: """
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
-                        sh '''
-                            echo "Contents of config.js after update:"
-                            cat config.js
-                        '''
+                        echo "Contents of config.js after update:"
+                        sh 'cat config.js'
                     }
                 }
             }
@@ -71,7 +76,7 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp/backend/backend') {
-                        // Verify the existence of settings.py
+                        echo "Verifying existence of settings.py..."
                         sh '''
                             if [ -f "settings.py" ]; then
                                 echo "Found settings.py at $(pwd)"
@@ -80,13 +85,12 @@ pipeline {
                                 exit 1
                             fi
                         '''
-                        // Update the HOST in the DATABASES section
+                        echo "Updating the HOST in DATABASES section of settings.py..."
                         sh """
                             sed -i "/'HOST':/c\\            'HOST': '${RDS_ENDPOINT}'," settings.py
                         """
-                        // Verify the DATABASES section after the update
+                        echo "DATABASES section of settings.py after update:"
                         sh '''
-                            echo "DATABASES section of settings.py after update:"
                             sed -n '/DATABASES = {/,/^}/p' settings.py
                         '''
                     }
@@ -95,4 +99,3 @@ pipeline {
         }
     }
 }
-
