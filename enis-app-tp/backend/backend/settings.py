@@ -101,7 +101,7 @@ DATABASES = {
         'NAME': 'enis_tp',
         'USER': 'dbuser',
         'PASSWORD': 'DBpassword2024',
-        'HOST':'mydb.cb8ik8giw1ln.us-east-1.rds.amazonaws.com',  # Make sure this is 'localhost'
+        'HOST':'DB_HOST',  # Make sure this is 'localhost'
         'PORT': '3306',  # Default MySQL port
     }
 }
