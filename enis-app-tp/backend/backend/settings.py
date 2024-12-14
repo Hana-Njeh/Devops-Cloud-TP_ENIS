@@ -101,7 +101,7 @@ DATABASES = {
         'NAME': 'enis_tp',
         'USER': 'dbuser',
         'PASSWORD': 'DBpassword2024',
-        'HOST':'DB_HOST',  # Make sure this is 'localhost'
+        'HOST':'localhost',  # Make sure this is 'localhost'
         'PORT': '3306',  # Default MySQL port
     }
 }
