@@ -42,7 +42,10 @@ pipeline {
                         // Capture RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output rds_endpoint | findstr "endpoint" | sed "s/\"//g" | sed "s/:3306//"
+                                for /f "tokens=2 delims==" %%a in ('terraform output rds_endpoint') do (
+                                    set RDS_ENDPOINT=%%a
+                                )
+                                powershell -Command "$RDS_ENDPOINT = '$RDS_ENDPOINT'; $RDS_ENDPOINT = $RDS_ENDPOINT -replace ':3306', ''; $RDS_ENDPOINT = $RDS_ENDPOINT -replace '\"', ''; Write-Output $RDS_ENDPOINT"
                             ''',
                             returnStdout: true
                         ).trim()
