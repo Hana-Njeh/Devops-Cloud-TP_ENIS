@@ -96,14 +96,22 @@ pipeline {
                                 exit 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section
+                        // Update the HOST in the DATABASES section using Windows native batch script
                         bat """
-                            sed -i "/'HOST':/c\\            'HOST': '${RDS_ENDPOINT}'," settings.py
+                            setlocal enabledelayedexpansion
+                            set SEARCH_PATTERN='HOST': 
+                            set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
+                            for /f "delims=" %%a in ('findstr /n "%SEARCH_PATTERN%" settings.py') do (
+                                set LINE=%%a
+                                set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
+                                echo !LINE! >> new_settings.py
+                            )
+                            move /y new_settings.py settings.py
                         """
                         // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            sed -n "/DATABASES = {/,/^}/p" settings.py
+                            findstr "DATABASES =" settings.py
                         '''
                     }
                 }
