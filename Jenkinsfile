@@ -29,8 +29,12 @@ pipeline {
                         // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
-                                terraform output instance_details | findstr "instance_public_ip" |
-                                awk "{print \$3}" | tr -d '"'
+                                setlocal enabledelayedexpansion
+                                for /f "tokens=3" %%a in ('terraform output instance_details ^| findstr "instance_public_ip"') do (
+                                    set EC2_PUBLIC_IP=%%a
+                                )
+                                set EC2_PUBLIC_IP=!EC2_PUBLIC_IP:"=!
+                                echo !EC2_PUBLIC_IP!
                             ''',
                             returnStdout: true
                         ).trim()
@@ -38,8 +42,7 @@ pipeline {
                         // Capture RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output rds_endpoint | findstr "endpoint" | awk -F'=' '{print \$2}' |
-                                tr -d '[:space:]"' | sed 's/:3306//'
+                                terraform output rds_endpoint | findstr "endpoint" | sed "s/\"//g" | sed "s/:3306//"
                             ''',
                             returnStdout: true
                         ).trim()
