@@ -18,41 +18,38 @@ pipeline {
                 script {
                     dir('my-terraform-project\\remote-backend') {
                         bat 'terraform init'
-                        // Apply Terraform configuration for remote backend
                         bat 'terraform apply --auto-approve'
                     }
                     dir('my-terraform-project') {
-                        // Initialize Terraform
                         bat 'terraform init'
                         bat 'terraform plan -lock=false'
-                        // Apply Terraform configuration
                         bat 'terraform apply -lock=false --auto-approve'
 
-                        // Capture EC2 Public IP
+                        // Capturer la sortie d'EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
-                                terraform output -json instance_details | jq -r '.instance_public_ip.value'
+                                terraform output instance_details
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Capture RDS Endpoint
+                        // Capturer le RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output -json rds_endpoint | jq -r '.value'
+                                terraform output rds_endpoint
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Capture Deployer Key URI
+                        // Capturer le URI du Deployer Key
                         DEPLOYER_KEY_URI = bat(
                             script: '''
-                                terraform output -json deployer_key_s3_uri | jq -r '.value'
+                                terraform output deployer_key_s3_uri
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Debugging: Print captured values
+                        // Afficher les valeurs dans les logs de Jenkins
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
@@ -79,7 +76,6 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp\\backend\\backend') {
-                        // Verify the existence of settings.py
                         bat '''
                             if exist "settings.py" (
                                 echo Found settings.py at %cd%
@@ -88,11 +84,9 @@ pipeline {
                                 exit /b 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section
                         bat """
                             powershell -Command "(gc settings.py) -replace '\\'HOST\\':.*', '\\'HOST\\': '${RDS_ENDPOINT}', ' | sc settings.py"
                         """
-                        // Verify the DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
                             powershell -Command "(gc settings.py -TotalCount 100) -match 'DATABASES' -or $_ -match '}'"
