@@ -1,6 +1,8 @@
 def EC2_PUBLIC_IP = ""
 def RDS_ENDPOINT = ""
 def DEPLOYER_KEY_URI = ""
+def S3_BUCKET_NAME = ""
+def DYNAMODB_TABLE_NAME = ""
 
 pipeline {
     agent any
@@ -22,6 +24,29 @@ pipeline {
                         bat "terraform init"
                         bat "terraform apply --auto-approve"
                         echo "Terraform applied in remote backend. Check for any issues."
+
+                        // Extract and echo S3 bucket and DynamoDB table names
+                        S3_BUCKET_NAME = bat(
+                            script: '''
+                                for /f "tokens=2 delims==" %%a in ('terraform output s3_bucket_name') do (
+                                    set S3_BUCKET_NAME=%%a
+                                )
+                                echo %S3_BUCKET_NAME%
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        echo "S3 Bucket Name: ${S3_BUCKET_NAME}"
+
+                        DYNAMODB_TABLE_NAME = bat(
+                            script: '''
+                                for /f "tokens=2 delims==" %%a in ('terraform output dynamodb_table_name') do (
+                                    set DYNAMODB_TABLE_NAME=%%a
+                                )
+                                echo %DYNAMODB_TABLE_NAME%
+                            ''',
+                            returnStdout: true
+                        ).trim()
+                        echo "DynamoDB Table Name: ${DYNAMODB_TABLE_NAME}"
                     }
 
                     echo "Now provisioning remaining resources..."
@@ -105,7 +130,7 @@ pipeline {
                             if exist "settings.py" (
                                 echo "Found settings.py at %cd%"
                             ) else (
-                                echo "settings.py not found in %cd%!"
+                                echo "settings.py not found in %cd%! Aborting."
                                 exit 1
                             )
                         '''
