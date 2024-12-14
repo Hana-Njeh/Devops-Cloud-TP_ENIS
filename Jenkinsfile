@@ -17,35 +17,35 @@ pipeline {
             steps {
                 script {
                     dir('my-terraform-project/remote_backend') {
-                        sh "terraform init"
-                        sh "terraform apply --auto-approve"
+                        bat "terraform init"
+                        bat "terraform apply --auto-approve"
                     }
                     dir('my-terraform-project') {
                         // Initialize and apply Terraform
-                        sh "terraform init"
-                        sh "terraform plan -lock=false"
-                        sh "terraform apply -lock=false --auto-approve"
+                        bat "terraform init"
+                        bat "terraform plan -lock=false"
+                        bat "terraform apply -lock=false --auto-approve"
                         
                         // Capture EC2 Public IP
-                        EC2_PUBLIC_IP = sh(
+                        EC2_PUBLIC_IP = bat(
                             script: '''
-                                terraform output instance_details | grep "instance_public_ip" |
-                                awk '{print $3}' | tr -d '"'
+                                terraform output instance_details | findstr "instance_public_ip" |
+                                awk "{print \$3}" | tr -d '"'
                             ''',
                             returnStdout: true
                         ).trim()
 
                         // Capture RDS Endpoint
-                        RDS_ENDPOINT = sh(
+                        RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output rds_endpoint | grep "endpoint" | awk -F'=' '{print $2}' |
+                                terraform output rds_endpoint | findstr "endpoint" | awk -F'=' '{print \$2}' |
                                 tr -d '[:space:]"' | sed 's/:3306//'
                             ''',
                             returnStdout: true
                         ).trim()
 
                         // Capture Deployer Key URI
-                        DEPLOYER_KEY_URI = sh(
+                        DEPLOYER_KEY_URI = bat(
                             script: '''
                                 terraform output deployer_key_s3_uri | tr -d '"'
                             ''',
@@ -66,9 +66,9 @@ pipeline {
                         writeFile file: 'config.js', text: """
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
-                        sh '''
+                        bat '''
                             echo "Contents of config.js after update:"
-                            cat config.js
+                            type config.js
                         '''
                     }
                 }
@@ -79,22 +79,22 @@ pipeline {
                 script {
                     dir('enis-app-tp/backend/backend') {
                         // Verify existence of settings.py
-                        sh '''
-                            if [ -f "settings.py" ]; then
-                                echo "Found settings.py at $(pwd)"
-                            else
-                                echo "settings.py not found in $(pwd)!"
+                        bat '''
+                            if exist "settings.py" (
+                                echo "Found settings.py at %cd%"
+                            ) else (
+                                echo "settings.py not found in %cd%!"
                                 exit 1
-                            fi
+                            )
                         '''
                         // Update the HOST in the DATABASES section
-                        sh """
+                        bat """
                             sed -i "/'HOST':/c\\            'HOST': '${RDS_ENDPOINT}'," settings.py
                         """
                         // Verify DATABASES section after the update
-                        sh '''
+                        bat '''
                             echo "DATABASES section of settings.py after update:"
-                            sed -n '/DATABASES = {/,/^}/p' settings.py
+                            sed -n "/DATABASES = {/,/^}/p" settings.py
                         '''
                     }
                 }
