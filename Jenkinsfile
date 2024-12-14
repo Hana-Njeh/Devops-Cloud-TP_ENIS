@@ -16,48 +16,51 @@ pipeline {
         stage('Provision Server and Database') {
             steps {
                 script {
-                    dir('my-terraform-project\\remote_backend') {
-                        bat 'terraform init'
-                        // Apply Terraform configuration for remote backend
-                        bat 'terraform apply --auto-approve'
+                    dir('my-terraform-project/remote-backend') {
+                        bat "terraform init"
+                        bat "terraform apply --auto-approve"
                     }
                     dir('my-terraform-project') {
-                        // Initialize Terraform
-                        bat 'terraform init'
-                        bat 'terraform plan -lock=false'
-                        // Apply Terraform configuration
-                        bat 'terraform apply -lock=false --auto-approve'
+                        // Initialize and apply Terraform
+                        bat "terraform init"
+                        bat "terraform plan -lock=false"
+                        bat "terraform apply -lock=false --auto-approve"
                         
-                        // Get EC2 Public IP using PowerShell
+                        // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
-                                $output = terraform output instance_details
-                                $output -match 'instance_public_ip.*"([^"]+)"' | Out-Null
-                                $matches[1]
+                                setlocal enabledelayedexpansion
+                                for /f "tokens=3" %%a in ('terraform output instance_details ^| findstr "instance_public_ip"') do (
+                                    set EC2_PUBLIC_IP=%%a
+                                )
+                                set EC2_PUBLIC_IP=!EC2_PUBLIC_IP:"=!
+                                echo !EC2_PUBLIC_IP!
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Get RDS Endpoint using PowerShell
+                        // Capture RDS Endpoint (remove port 3306)
                         RDS_ENDPOINT = bat(
                             script: '''
-                                $output = terraform output rds_endpoint
-                                $output -match 'endpoint.*"([^"]+)"' | Out-Null
-                                $matches[1] -replace ":3306", ""
+                                for /f "tokens=2 delims==" %%a in ('terraform output rds_endpoint') do (
+                                    set RDS_ENDPOINT=%%a
+                                )
+                                powershell -Command "$RDS_ENDPOINT = '$RDS_ENDPOINT'; $RDS_ENDPOINT = $RDS_ENDPOINT -replace ':3306', ''; $RDS_ENDPOINT = $RDS_ENDPOINT -replace '\"', ''; Write-Output $RDS_ENDPOINT"
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Get Deployer Key URI using PowerShell
+                        // Capture Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
-                                $output = terraform output deployer_key_s3_uri
-                                $output -replace '"', ''
+                                for /f "tokens=*" %%a in ('terraform output deployer_key_s3_uri') do (
+                                    set DEPLOYER_KEY_URI=%%a
+                                )
+                                powershell -Command "$DEPLOYER_KEY_URI = '$DEPLOYER_KEY_URI'; $DEPLOYER_KEY_URI = $DEPLOYER_KEY_URI -replace '\"', ''; Write-Output $DEPLOYER_KEY_URI"
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Debugging: Print captured values
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
@@ -68,7 +71,7 @@ pipeline {
         stage('Update Frontend Configuration') {
             steps {
                 script {
-                    dir('enis-app-tp\\frontend\\src') {
+                    dir('enis-app-tp/frontend/src') {
                         writeFile file: 'config.js', text: """
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
@@ -83,24 +86,39 @@ pipeline {
         stage('Update Backend Configuration') {
             steps {
                 script {
-                    dir('enis-app-tp\\backend\\backend') {
-                        // Verify the existence of settings.py
+                    dir('enis-app-tp/backend/backend') {
+                        // Verify existence of settings.py
                         bat '''
                             if exist "settings.py" (
-                                echo Found settings.py at %cd%
+                                echo "Found settings.py at %cd%"
                             ) else (
-                                echo settings.py not found in %cd%!
+                                echo "settings.py not found in %cd%! Exiting..."
                                 exit /b 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section using PowerShell
+                        // Backup settings.py before modification
+                        bat '''
+                            copy settings.py settings.py.bak
+                            echo "Backup created: settings.py.bak"
+                        '''
+
+                        // Update the HOST in the DATABASES section using batch script without overwriting
                         bat """
-                            powershell -Command "(Get-Content settings.py) -replace \"'HOST':.*\", \"'HOST': '${RDS_ENDPOINT}',\" | Set-Content settings.py"
+                            setlocal enabledelayedexpansion
+                            set SEARCH_PATTERN='HOST': 
+                            set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
+                            for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
+                                set LINE=%%a
+                                set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
+                                echo !LINE! >> new_settings.py
+                            )
+                            move /y new_settings.py settings.py
                         """
-                        // Verify the DATABASES section after the update
+
+                        // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            powershell -Command "Select-String -Pattern 'DATABASES = {' -Context 0,10 settings.py"
+                            findstr /i /c:"DATABASES =" settings.py
                         '''
                     }
                 }
