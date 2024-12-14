@@ -1,7 +1,6 @@
 def EC2_PUBLIC_IP = ""
 def RDS_ENDPOINT = ""
 def DEPLOYER_KEY_URI = ""
-
 pipeline {
     agent any
     environment {
@@ -96,11 +95,9 @@ pipeline {
                         // Update the HOST in the DATABASES section
                         bat """
                             setlocal enabledelayedexpansion
-                            set SEARCH_PATTERN='HOST': 
-                            set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
                             for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
                                 set LINE=%%a
-                                set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
+                                set "LINE=!LINE:'HOST': = 'HOST': '${RDS_ENDPOINT}'!"
                                 echo !LINE! >> new_settings.py
                             )
                             move /y new_settings.py settings.py
