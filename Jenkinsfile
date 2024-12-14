@@ -27,27 +27,31 @@ pipeline {
                         bat 'terraform plan -lock=false'
                         // Apply Terraform configuration
                         bat 'terraform apply -lock=false --auto-approve'
-                        // Get EC2 Public IP
+
+                        // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
-                                terraform output instance_details | findstr "instance_public_ip" | for /F "tokens=2 delims=:" %%A in ('findstr "instance_public_ip"') do @echo %%A
+                                terraform output -json instance_details | jq -r '.instance_public_ip.value'
                             ''',
                             returnStdout: true
                         ).trim()
-                        // Get RDS Endpoint
+
+                        // Capture RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output rds_endpoint | findstr "endpoint" | for /F "tokens=2 delims==" %%A in ('findstr "endpoint"') do @echo %%A
+                                terraform output -json rds_endpoint | jq -r '.value'
                             ''',
                             returnStdout: true
                         ).trim()
-                        // Get Deployer Key URI
+
+                        // Capture Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
-                                terraform output deployer_key_s3_uri | findstr "deployer_key_s3_uri" | for /F "tokens=2 delims==" %%A in ('findstr "deployer_key_s3_uri"') do @echo %%A
+                                terraform output -json deployer_key_s3_uri | jq -r '.value'
                             ''',
                             returnStdout: true
                         ).trim()
+
                         // Debugging: Print captured values
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
