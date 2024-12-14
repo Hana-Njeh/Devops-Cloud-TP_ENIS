@@ -16,35 +16,37 @@ pipeline {
         stage('Provision Server and Database') {
             steps {
                 script {
-                    dir('my-terraform-project/remote-backend') {
+                    dir('my-terraform-project/remote_backend') {
                         bat "terraform init"
-                        // Apply Terraform configuration for remote backend
+                        // Appliquer la configuration Terraform pour le backend distant
                         bat "terraform apply --auto-approve"
                     }
                     dir('my-terraform-project') {
-                        // Initialize Terraform
+                        // Initialiser Terraform
                         bat "terraform init"
                         bat "terraform plan -lock=false"
-                        // Apply Terraform configuration
+                        // Appliquer la configuration Terraform
                         bat "terraform apply -lock=false --auto-approve"
-                        // Get EC2 Public IP
+                        // Récupérer l'adresse IP publique de l'EC2
                         EC2_PUBLIC_IP = bat(
-                            script: "terraform output instance_details | findstr /c:\"instance_public_ip\" | for /f \"tokens=3\" %a in ('more') do @echo %a",
-                            returnStdout: true
-                        ).trim()
-                        // Get RDS Endpoint
-                        RDS_ENDPOINT = bat(
                             script: """
-                                terraform output rds_endpoint | findstr /c:\"endpoint\" | for /f "tokens=2 delims==" %a in ('more') do @echo %a | sed "s/:3306//"
+                                terraform output instance_details | findstr /c:"instance_public_ip" | for /f "tokens=3" %%a in ('more') do @echo %%a
                             """,
                             returnStdout: true
                         ).trim()
-                        // Get Deployer Key URI
-                        DEPLOYER_KEY_URI = bat(
-                            script: "terraform output deployer_key_s3_uri | for /f %a in ('more') do @echo %a",
+                        // Récupérer le point de terminaison de la RDS
+                        RDS_ENDPOINT = bat(
+                            script: """
+                                terraform output rds_endpoint | findstr /c:"endpoint" | for /f "tokens=2 delims==" %%a in ('more') do @echo %%a | sed "s/:3306//"
+                            """,
                             returnStdout: true
                         ).trim()
-                        // Debugging: Print captured values
+                        // Récupérer l'URI de la clé de déploiement
+                        DEPLOYER_KEY_URI = bat(
+                            script: "terraform output deployer_key_s3_uri | for /f %%a in ('more') do @echo %%a",
+                            returnStdout: true
+                        ).trim()
+                        // Débogage : afficher les valeurs récupérées
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
@@ -71,7 +73,7 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp/backend/backend') {
-                        // Verify the existence of settings.py
+                        // Vérifier l'existence de settings.py
                         bat '''
                             if exist "settings.py" (
                                 echo Found settings.py at %cd%
@@ -80,11 +82,11 @@ pipeline {
                                 exit /b 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section
+                        // Mettre à jour le HOST dans la section DATABASES
                         bat """
                             powershell -Command "(Get-Content settings.py) -replace \"'HOST': '.*'\", \"'HOST': '${RDS_ENDPOINT}',\" | Set-Content settings.py"
                         """
-                        // Verify the DATABASES section after the update
+                        // Vérifier la section DATABASES après la mise à jour
                         bat '''
                             echo "DATABASES section of settings.py after update:"
                             findstr /C:"'HOST':" settings.py
