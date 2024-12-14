@@ -53,7 +53,10 @@ pipeline {
                         // Capture Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
-                                terraform output deployer_key_s3_uri | tr -d '"'
+                                for /f "tokens=*" %%a in ('terraform output deployer_key_s3_uri') do (
+                                    set DEPLOYER_KEY_URI=%%a
+                                )
+                                powershell -Command "$DEPLOYER_KEY_URI = '$DEPLOYER_KEY_URI'; $DEPLOYER_KEY_URI = $DEPLOYER_KEY_URI -replace '\"', ''; Write-Output $DEPLOYER_KEY_URI"
                             ''',
                             returnStdout: true
                         ).trim()
