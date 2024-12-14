@@ -101,7 +101,7 @@ pipeline {
                             setlocal enabledelayedexpansion
                             set SEARCH_PATTERN='HOST': 
                             set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
-                            for /f "delims=" %%a in ('findstr /n "%SEARCH_PATTERN%" settings.py') do (
+                            for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
                                 set LINE=%%a
                                 set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
                                 echo !LINE! >> new_settings.py
@@ -111,7 +111,7 @@ pipeline {
                         // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            findstr /C:"DATABASES =" settings.py
+                            findstr /i /c:"DATABASES =" settings.py
                         '''
                     }
                 }
