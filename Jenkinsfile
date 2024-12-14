@@ -71,40 +71,40 @@ pipeline {
             }
         }
         stage('Update Backend Configuration') {
-    steps {
-        script {
-            dir('enis-app-tp/backend/backend') {
-                bat '''
-                    if exist "settings.py" (
-                        echo Found settings.py at %cd%
-                    ) else (
-                        echo settings.py not found in %cd%!
-                        exit /b 1
-                    )
-                '''
-                // Get the RDS endpoint from Terraform output
-                def rdsEndpoint = bat(
-                    script: '''
-                        terraform output rds_endpoint | findstr "endpoint" | for /f "tokens=2 delims== " %%i in ('findstr "endpoint"') do echo %%i
-                    ''',
-                    returnStdout: true
-                ).trim()
+            steps {
+                script {
+                    dir('enis-app-tp/backend/backend') {
+                        bat '''
+                            if exist "settings.py" (
+                                echo Found settings.py at %cd%
+                            ) else (
+                                echo settings.py not found in %cd%!
+                                exit /b 1
+                            )
+                        '''
+                        // Get the RDS endpoint from Terraform output
+                        def rdsEndpoint = bat(
+                            script: '''
+                                terraform output rds_endpoint | findstr "endpoint" | for /f "tokens=2 delims== " %%i in ('findstr "endpoint"') do echo %%i
+                            ''',
+                            returnStdout: true
+                        ).trim()
 
-                echo "RDS Endpoint: ${rdsEndpoint}"
+                        echo "RDS Endpoint: ${rdsEndpoint}"
 
-                // Update the HOST in the DATABASES section
-                bat """
-                    powershell -Command "(gc settings.py) -replace \"'HOST':.*\", \"'HOST': '${rdsEndpoint}'\" | sc settings.py"
-                """
-                
-                // Verify the DATABASES section after the update
-                bat '''
-                    echo DATABASES section of settings.py after update:
-                    powershell -Command "(gc settings.py) -match 'DATABASES = {' -join '`n'"
-                '''
+                        // Update the HOST in the DATABASES section using Groovy's string interpolation
+                        bat """
+                            powershell -Command "(gc settings.py) -replace \"'HOST':.*\", \"'HOST': '${rdsEndpoint}'\" | sc settings.py"
+                        """
+
+                        // Verify the DATABASES section after the update
+                        bat '''
+                            echo DATABASES section of settings.py after update:
+                            powershell -Command "(gc settings.py) -match 'DATABASES = {' -join '`n'"
+                        '''
+                    }
+                }
             }
         }
     }
-}
-
 }
