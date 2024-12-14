@@ -92,6 +92,11 @@ pipeline {
                                 exit 1
                             )
                         '''
+                        // Display content of settings.py for debugging
+                        bat '''
+                            echo "Displaying content of settings.py before update:"
+                            type settings.py
+                        '''
                         // Update the HOST in the DATABASES section
                         bat """
                             setlocal enabledelayedexpansion
