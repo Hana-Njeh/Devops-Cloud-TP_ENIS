@@ -96,41 +96,22 @@ pipeline {
                                 exit 1
                             )
                         '''
-                        
                         // Update the HOST in the DATABASES section using Windows native batch script
                         bat """
                             setlocal enabledelayedexpansion
                             set SEARCH_PATTERN='HOST': 
                             set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
-                            
-                            // Start by checking if 'DATABASES' section exists and replace the host
-                            set found=0
-                            for /f "tokens=*" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
+                            for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
                                 set LINE=%%a
-                                if /i "!LINE!"=="DATABASES =" (
-                                    set found=1
-                                )
+                                set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
+                                echo !LINE! >> new_settings.py
                             )
-                            
-                            if !found! == 1 (
-                                echo Replacing HOST in DATABASES section...
-                                // Replace HOST
-                                for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
-                                    set LINE=%%a
-                                    set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
-                                    echo !LINE! >> new_settings.py
-                                )
-                                move /y new_settings.py settings.py
-                            ) else (
-                                echo "DATABASES section not found!"
-                                exit 1
-                            )
+                            move /y new_settings.py settings.py
                         """
-                        
-                        // Output the entire settings.py content after the update to verify the change
+                        // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            type settings.py
+                            findstr /i /c:"DATABASES =" settings.py
                         '''
                     }
                 }
