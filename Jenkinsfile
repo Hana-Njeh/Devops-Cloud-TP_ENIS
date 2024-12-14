@@ -1,6 +1,7 @@
 def EC2_PUBLIC_IP = ""
 def RDS_ENDPOINT = ""
 def DEPLOYER_KEY_URI = ""
+
 pipeline {
     agent any
     environment {
@@ -20,30 +21,42 @@ pipeline {
                         bat "terraform apply --auto-approve"
                     }
                     dir('my-terraform-project') {
+                        // Initialize and apply Terraform
                         bat "terraform init"
                         bat "terraform plan -lock=false"
                         bat "terraform apply -lock=false --auto-approve"
-
-                        // Get EC2 Public IP
+                        
+                        // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
-                                terraform output instance_details | findstr "instance_public_ip" | for /f "tokens=2 delims== " %%i in ('findstr "instance_public_ip"') do echo %%i
+                                setlocal enabledelayedexpansion
+                                for /f "tokens=3" %%a in ('terraform output instance_details ^| findstr "instance_public_ip"') do (
+                                    set EC2_PUBLIC_IP=%%a
+                                )
+                                set EC2_PUBLIC_IP=!EC2_PUBLIC_IP:"=!
+                                echo !EC2_PUBLIC_IP!
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Get RDS Endpoint
+                        // Capture RDS Endpoint and remove port
                         RDS_ENDPOINT = bat(
                             script: '''
-                                terraform output rds_endpoint | findstr "endpoint" | for /f "tokens=2 delims== " %%i in ('findstr "endpoint"') do echo %%i
+                                for /f "tokens=2 delims==" %%a in ('terraform output rds_endpoint') do (
+                                    set RDS_ENDPOINT=%%a
+                                )
+                                powershell -Command "$RDS_ENDPOINT = '$RDS_ENDPOINT'; $RDS_ENDPOINT = $RDS_ENDPOINT -replace ':3306', ''; $RDS_ENDPOINT = $RDS_ENDPOINT -replace '\"', ''; Write-Output $RDS_ENDPOINT"
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        // Get Deployer Key URI
+                        // Capture Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
-                                terraform output deployer_key_s3_uri
+                                for /f "tokens=*" %%a in ('terraform output deployer_key_s3_uri') do (
+                                    set DEPLOYER_KEY_URI=%%a
+                                )
+                                powershell -Command "$DEPLOYER_KEY_URI = '$DEPLOYER_KEY_URI'; $DEPLOYER_KEY_URI = $DEPLOYER_KEY_URI -replace '\"', ''; Write-Output $DEPLOYER_KEY_URI"
                             ''',
                             returnStdout: true
                         ).trim()
@@ -63,7 +76,7 @@ pipeline {
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
                         bat '''
-                            echo Contents of config.js after update:
+                            echo "Contents of config.js after update:"
                             type config.js
                         '''
                     }
@@ -74,33 +87,32 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp/backend/backend') {
+                        // Verify existence of settings.py
                         bat '''
                             if exist "settings.py" (
-                                echo Found settings.py at %cd%
+                                echo "Found settings.py at %cd%"
                             ) else (
-                                echo settings.py not found in %cd%!
-                                exit /b 1
+                                echo "settings.py not found in %cd%! Exiting."
+                                exit 1
                             )
                         '''
-                        // Get the RDS endpoint from Terraform output
-                        def rdsEndpoint = bat(
-                            script: '''
-                                terraform output rds_endpoint | findstr "endpoint" | for /f "tokens=2 delims== " %%i in ('findstr "endpoint"') do echo %%i
-                            ''',
-                            returnStdout: true
-                        ).trim()
-
-                        echo "RDS Endpoint: ${rdsEndpoint}"
-
-                        // Update the HOST in the DATABASES section using Groovy's string interpolation
+                        // Update the HOST in the DATABASES section using PowerShell
                         bat """
-                            powershell -Command "(gc settings.py) -replace \"'HOST':.*\", \"'HOST': '${rdsEndpoint}'\" | sc settings.py"
+                            powershell -Command \"
+                            (Get-Content settings.py) | 
+                            ForEach-Object {
+                                if (\$_ -match 'HOST') {
+                                    \$_ = \$_ -replace 'HOST:.*', 'HOST: '${RDS_ENDPOINT}'
+                                }
+                                \$_
+                            } | Set-Content settings.py
+                            \"
                         """
-
-                        // Verify the DATABASES section after the update
+                        
+                        // Verify DATABASES section after the update
                         bat '''
-                            echo DATABASES section of settings.py after update:
-                            powershell -Command "(gc settings.py) -match 'DATABASES = {' -join '`n'"
+                            echo "DATABASES section of settings.py after update:"
+                            findstr /i /c:"DATABASES =" settings.py
                         '''
                     }
                 }
