@@ -25,7 +25,7 @@ pipeline {
                         bat "terraform init"
                         bat "terraform plan -lock=false"
                         bat "terraform apply -lock=false --auto-approve"
-                        
+
                         // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
@@ -34,12 +34,12 @@ pipeline {
                                 )
                             ''',
                             returnStdout: true
-                        ).trim()
+                        ).trim().replace('"', '')
 
                         // Capture RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
-                                for /f "tokens=2 delims==" %%a in ('terraform output rds_endpoint') do (
+                                for /f "tokens=*" %%a in ('terraform output rds_endpoint') do (
                                     echo %%a
                                 )
                             ''',
@@ -91,7 +91,7 @@ pipeline {
                                 exit 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section using Windows native batch script
+                        // Update the HOST in the DATABASES section
                         bat """
                             setlocal enabledelayedexpansion
                             set SEARCH_PATTERN='HOST': 
