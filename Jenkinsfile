@@ -1,8 +1,6 @@
 def EC2_PUBLIC_IP = ""
 def RDS_ENDPOINT = ""
 def DEPLOYER_KEY_URI = ""
-def S3_BUCKET_NAME = ""
-def DYNAMODB_TABLE_NAME = ""
 
 pipeline {
     agent any
@@ -18,46 +16,17 @@ pipeline {
         stage('Provision Server and Database') {
             steps {
                 script {
-                    echo "Starting Terraform initialization and apply in remote backend..."
-
                     dir('my-terraform-project/remote-backend') {
                         bat "terraform init"
                         bat "terraform apply --auto-approve"
-                        echo "Terraform applied in remote backend. Check for any issues."
-
-                        // Extract and echo S3 bucket and DynamoDB table names
-                        S3_BUCKET_NAME = bat(
-                            script: '''
-                                for /f "tokens=2 delims==" %%a in ('terraform output s3_bucket_name') do (
-                                    set S3_BUCKET_NAME=%%a
-                                )
-                                echo %S3_BUCKET_NAME%
-                            ''',
-                            returnStdout: true
-                        ).trim()
-                        echo "S3 Bucket Name: ${S3_BUCKET_NAME}"
-
-                        DYNAMODB_TABLE_NAME = bat(
-                            script: '''
-                                for /f "tokens=2 delims==" %%a in ('terraform output dynamodb_table_name') do (
-                                    set DYNAMODB_TABLE_NAME=%%a
-                                )
-                                echo %DYNAMODB_TABLE_NAME%
-                            ''',
-                            returnStdout: true
-                        ).trim()
-                        echo "DynamoDB Table Name: ${DYNAMODB_TABLE_NAME}"
                     }
-
-                    echo "Now provisioning remaining resources..."
-
                     dir('my-terraform-project') {
-                        // Initialize and apply Terraform for the rest of the resources
+                        // Initialize and apply Terraform for the remaining resources
                         bat "terraform init"
                         bat "terraform plan -lock=false"
                         bat "terraform apply -lock=false --auto-approve"
-                        
-                        // Capture and echo EC2 Public IP
+
+                        // Capture EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
                                 setlocal enabledelayedexpansion
@@ -69,9 +38,8 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-                        echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
 
-                        // Capture and echo RDS Endpoint
+                        // Capture RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
                                 for /f "tokens=2 delims==" %%a in ('terraform output rds_endpoint') do (
@@ -81,9 +49,8 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-                        echo "RDS Endpoint: ${RDS_ENDPOINT}"
 
-                        // Capture and echo Deployer Key URI
+                        // Capture Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
                                 for /f "tokens=*" %%a in ('terraform output deployer_key_s3_uri') do (
@@ -93,23 +60,26 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
+
+                        // Display Terraform output values
+                        echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
+                        echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
+
+                        // Log successful completion of the provisioning
+                        echo "Terraform 'init' and 'apply' were successful for network, compute, and database resources."
+                        echo "S3 Bucket and DynamoDB Table have been created successfully."
                     }
                 }
             }
         }
-
         stage('Update Frontend Configuration') {
             steps {
                 script {
-                    echo "Updating Frontend configuration with EC2 IP..."
-
                     dir('enis-app-tp/frontend/src') {
                         writeFile file: 'config.js', text: """
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
-                        echo "Frontend config.js updated with new API base URL: http://${EC2_PUBLIC_IP}:8000"
-
                         bat '''
                             echo "Contents of config.js after update:"
                             type config.js
@@ -118,19 +88,16 @@ pipeline {
                 }
             }
         }
-
         stage('Update Backend Configuration') {
             steps {
                 script {
-                    echo "Verifying and updating Backend configuration..."
-
                     dir('enis-app-tp/backend/backend') {
                         // Verify existence of settings.py
                         bat '''
                             if exist "settings.py" (
                                 echo "Found settings.py at %cd%"
                             ) else (
-                                echo "settings.py not found in %cd%! Aborting."
+                                echo "settings.py not found in %cd%!"
                                 exit 1
                             )
                         '''
@@ -146,8 +113,6 @@ pipeline {
                             )
                             move /y new_settings.py settings.py
                         """
-                        echo "Backend settings.py updated with new RDS endpoint."
-
                         // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
