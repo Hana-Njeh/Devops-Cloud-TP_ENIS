@@ -18,13 +18,15 @@ pipeline {
                 script {
                     dir('my-terraform-project\\remote_backend') {
                         bat 'terraform init'
+                        // Apply Terraform configuration for remote backend
                         bat 'terraform apply --auto-approve'
                     }
                     dir('my-terraform-project') {
+                        // Initialize Terraform
                         bat 'terraform init'
                         bat 'terraform plan -lock=false'
+                        // Apply Terraform configuration
                         bat 'terraform apply -lock=false --auto-approve'
-
                         // Get EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
@@ -32,7 +34,6 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-
                         // Get RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
@@ -40,7 +41,6 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-
                         // Get Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
@@ -48,7 +48,6 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-
                         // Debugging: Print captured values
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
@@ -92,22 +91,11 @@ pipeline {
                         // Verify the DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            powershell -Command "(gc settings.py) -TotalCount 10"
+                            powershell -Command "(gc settings.py -TotalCount 100) -match 'DATABASES' -or $_ -match '}'"
                         '''
                     }
                 }
             }
-        }
-    }
-    post {
-        always {
-            echo 'Pipeline completed.'
-        }
-        success {
-            echo 'Pipeline succeeded!'
-        }
-        failure {
-            echo 'Pipeline failed!'
         }
     }
 }
