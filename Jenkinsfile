@@ -1,7 +1,6 @@
 def EC2_PUBLIC_IP = ""
 def RDS_ENDPOINT = ""
 def DEPLOYER_KEY_URI = ""
-
 pipeline {
     agent any
     environment {
@@ -18,15 +17,13 @@ pipeline {
                 script {
                     dir('my-terraform-project/remote-backend') {
                         bat "terraform init"
-                        // Apply Terraform configuration for remote backend
                         bat "terraform apply --auto-approve"
                     }
                     dir('my-terraform-project') {
-                        // Initialize Terraform
                         bat "terraform init"
                         bat "terraform plan -lock=false"
-                        // Apply Terraform configuration
                         bat "terraform apply -lock=false --auto-approve"
+
                         // Get EC2 Public IP
                         EC2_PUBLIC_IP = bat(
                             script: '''
@@ -34,6 +31,7 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
+
                         // Get RDS Endpoint
                         RDS_ENDPOINT = bat(
                             script: '''
@@ -41,6 +39,7 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
+
                         // Get Deployer Key URI
                         DEPLOYER_KEY_URI = bat(
                             script: '''
@@ -48,7 +47,7 @@ pipeline {
                             ''',
                             returnStdout: true
                         ).trim()
-                        // Debugging: Print captured values
+
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
@@ -75,7 +74,6 @@ pipeline {
             steps {
                 script {
                     dir('enis-app-tp/backend/backend') {
-                        // Verify the existence of settings.py
                         bat '''
                             if exist "settings.py" (
                                 echo Found settings.py at %cd%
@@ -86,7 +84,7 @@ pipeline {
                         '''
                         // Update the HOST in the DATABASES section
                         bat """
-                            powershell -Command "(gc settings.py) -replace \"'HOST':.*\", \"'HOST': '${RDS_ENDPOINT}',\" | sc settings.py"
+                            powershell -Command "(gc settings.py) -replace \"'HOST':.*\", \"'HOST': '${RDS_ENDPOINT}'\" | sc settings.py"
                         """
                         // Verify the DATABASES section after the update
                         bat '''
