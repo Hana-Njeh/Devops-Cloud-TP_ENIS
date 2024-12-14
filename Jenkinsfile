@@ -92,25 +92,23 @@ pipeline {
                             if exist "settings.py" (
                                 echo "Found settings.py at %cd%"
                             ) else (
-                                echo "settings.py not found in %cd%! Exiting."
+                                echo "settings.py not found in %cd%!"
                                 exit 1
                             )
                         '''
                         // Update the HOST in the DATABASES section using Windows native batch script
                         bat """
                             setlocal enabledelayedexpansion
-                            set SEARCH_PATTERN="HOST"
-                            set REPLACE_PATTERN="HOST": "${RDS_ENDPOINT}"
-                            (
-                                for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
-                                    set LINE=%%a
-                                    set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
-                                    echo !LINE!
-                                )
-                            ) > new_settings.py
+                            set SEARCH_PATTERN='HOST': 
+                            set REPLACE_PATTERN='HOST': '${RDS_ENDPOINT}'
+                            for /f "delims=" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
+                                set LINE=%%a
+                                set "LINE=!LINE:%SEARCH_PATTERN%=%REPLACE_PATTERN%!"
+                                echo !LINE! >> new_settings.py
+                            )
                             move /y new_settings.py settings.py
                         """
-                        // Display DATABASES section after the update
+                        // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
                             findstr /i /c:"DATABASES =" settings.py
