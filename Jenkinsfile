@@ -111,7 +111,7 @@ pipeline {
                         // Verify DATABASES section after the update
                         bat '''
                             echo "DATABASES section of settings.py after update:"
-                            findstr "DATABASES =" settings.py
+                            findstr /C:"DATABASES =" settings.py
                         '''
                     }
                 }
