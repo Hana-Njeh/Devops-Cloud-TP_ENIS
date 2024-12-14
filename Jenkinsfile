@@ -56,6 +56,7 @@ pipeline {
                             returnStdout: true
                         ).trim().replace('"', '')
 
+                        // Output extracted values for reference
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
                         echo "Deployer Key URI: ${DEPLOYER_KEY_URI}"
@@ -70,6 +71,7 @@ pipeline {
                         writeFile file: 'config.js', text: """
                             export const API_BASE_URL = 'http://${EC2_PUBLIC_IP}:8000';
                         """
+                        // Display config.js content after update
                         bat '''
                             echo "Contents of config.js after update:"
                             type config.js
@@ -103,10 +105,12 @@ pipeline {
                             )
                             move /y new_settings.py settings.py
                         """
-                        // Verify DATABASES section after the update
+                        // Display the DATABASES section after the update
                         bat '''
-                            echo "DATABASES section of settings.py after update:"
-                            findstr /i /c:"DATABASES =" settings.py
+                            echo "Displaying entire DATABASES section of settings.py after update:"
+                            for /f "tokens=*" %%a in ('findstr /i /c:"DATABASES =" settings.py') do (
+                                echo %%a
+                            )
                         '''
                     }
                 }
