@@ -16,7 +16,7 @@ pipeline {
         stage('Provision Server and Database') {
             steps {
                 script {
-                    dir('my-terraform-project\\remote-backend') {
+                    dir('my-terraform-project\\remote_backend') {
                         bat 'terraform init'
                         // Apply Terraform configuration for remote backend
                         bat 'terraform apply --auto-approve'
@@ -27,23 +27,36 @@ pipeline {
                         bat 'terraform plan -lock=false'
                         // Apply Terraform configuration
                         bat 'terraform apply -lock=false --auto-approve'
-                        // Get EC2 Public IP
+                        
+                        // Get EC2 Public IP using PowerShell
                         EC2_PUBLIC_IP = bat(
-                            script: "terraform output instance_details | findstr instance_public_ip | awk '{print \$3}' | tr -d '\"'",
+                            script: '''
+                                $output = terraform output instance_details
+                                $output -match 'instance_public_ip.*"([^"]+)"' | Out-Null
+                                $matches[1]
+                            ''',
                             returnStdout: true
                         ).trim()
-                        // Get RDS Endpoint
+
+                        // Get RDS Endpoint using PowerShell
                         RDS_ENDPOINT = bat(
-                            script: """
-                                terraform output rds_endpoint | findstr endpoint | awk -F'=' '{print \$2}' | tr -d '[:space:]\"' | sed 's/:3306//'
-                            """,
+                            script: '''
+                                $output = terraform output rds_endpoint
+                                $output -match 'endpoint.*"([^"]+)"' | Out-Null
+                                $matches[1] -replace ":3306", ""
+                            ''',
                             returnStdout: true
                         ).trim()
-                        // Get Deployer Key URI
+
+                        // Get Deployer Key URI using PowerShell
                         DEPLOYER_KEY_URI = bat(
-                            script: "terraform output deployer_key_s3_uri | tr -d '\"'",
+                            script: '''
+                                $output = terraform output deployer_key_s3_uri
+                                $output -replace '"', ''
+                            ''',
                             returnStdout: true
                         ).trim()
+
                         // Debugging: Print captured values
                         echo "EC2 Public IP: ${EC2_PUBLIC_IP}"
                         echo "RDS Endpoint: ${RDS_ENDPOINT}"
@@ -80,7 +93,7 @@ pipeline {
                                 exit /b 1
                             )
                         '''
-                        // Update the HOST in the DATABASES section
+                        // Update the HOST in the DATABASES section using PowerShell
                         bat """
                             powershell -Command "(Get-Content settings.py) -replace \"'HOST':.*\", \"'HOST': '${RDS_ENDPOINT}',\" | Set-Content settings.py"
                         """
